@@ -1,0 +1,175 @@
+import { useState } from "react";
+import { Copy, Eye, EyeOff, Lock, Maximize2, RefreshCw, RotateCw, Unlock } from "lucide-react";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { AnimatedAmount } from "@/components/common/Amount";
+import { useRenewCard, useUpdateProfile } from "@/lib/hooks";
+import { errorMessage, fmtEur } from "@/lib/format";
+import type { User } from "@/lib/types";
+
+export function Chip() {
+  return (
+    <div className="relative h-9 w-12 overflow-hidden rounded-md bg-gradient-to-br from-slate-100 via-slate-300 to-slate-400 shadow-inner">
+      <div className="absolute inset-x-0 top-1/3 h-px bg-slate-500/50" />
+      <div className="absolute inset-x-0 top-2/3 h-px bg-slate-500/50" />
+      <div className="absolute inset-y-0 left-1/3 w-px bg-slate-500/50" />
+      <div className="absolute inset-y-0 left-2/3 w-px bg-slate-500/50" />
+      <div className="absolute left-1/2 top-1/2 h-4 w-5 -translate-x-1/2 -translate-y-1/2 rounded-sm border border-slate-500/50 bg-slate-200" />
+    </div>
+  );
+}
+
+export function Contactless() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-8 text-white/90" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <path d="M8.5 8.5a5 5 0 0 1 0 7" />
+      <path d="M12 6a8.5 8.5 0 0 1 0 12" />
+      <path d="M15.5 3.5a12 12 0 0 1 0 17" />
+    </svg>
+  );
+}
+
+function Brand() {
+  return (
+    <div className="flex">
+      <span className="size-8 rounded-full bg-[#EB001B]/95" />
+      <span className="-ml-3.5 size-8 rounded-full bg-[#F79E1B]/90 mix-blend-normal" />
+    </div>
+  );
+}
+
+const masked = (n: string) => `•••• •••• •••• ${n.slice(-4)}`;
+
+/** Home hero card: balance + chip + contactless, like the reference screenshot. */
+export function BalanceCard({ user, onOpen }: { user: User; onOpen: () => void }) {
+  const update = useUpdateProfile();
+  const hidden = user.preferences.hide_balance;
+  const [iban, setIban] = useState(false);
+  const toggle = () => update.mutate({ preferences: { ...user.preferences, hide_balance: !hidden } });
+  const len = fmtEur(user.balance_cents).length;
+  const size = len > 20 ? "text-2xl sm:text-3xl" : len > 15 ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl";
+  return (
+    <div
+      data-testid="virtual-card"
+      className={`card-gradient-${user.card.theme} group relative overflow-hidden rounded-[28px] p-6 text-white shadow-[0_24px_50px_-18px_rgba(37,99,235,0.55)] sm:p-7`}
+    >
+      <div className="pointer-events-none absolute -right-16 -top-24 size-72 rounded-full bg-white/10 blur-2xl" />
+      <div className="pointer-events-none absolute -bottom-28 right-10 size-72 rounded-full bg-violet-400/30 blur-3xl" />
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 animate-shimmer bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <div className="relative flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-sm font-medium text-blue-100 sm:text-base">
+            Solde disponible
+            <button type="button" aria-label="Masquer le solde" data-testid="toggle-balance-visibility" onClick={toggle} className="rounded-full p-1 transition-colors hover:bg-white/15">
+              {hidden ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
+            </button>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Chip />
+          <Contactless />
+        </div>
+      </div>
+      <div className={`relative mt-2 whitespace-nowrap font-heading font-extrabold tracking-tight tabular-nums ${size}`} data-testid="balance-amount">
+        {hidden ? "•••••• €" : <AnimatedAmount cents={user.balance_cents} />}
+      </div>
+      <div className="relative mt-6 flex flex-wrap items-end justify-between gap-3">
+        <div className="space-y-2">
+          <p className="font-mono text-sm tracking-widest text-blue-100" data-testid="card-number-masked">{masked(user.card.number)}</p>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" data-testid="show-iban-button" onClick={() => setIban((v) => !v)}
+              className="rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-slate-900 shadow-md transition-transform duration-150 hover:-translate-y-0.5 active:scale-95">
+              {iban ? "Masquer l'IBAN" : "Voir mon IBAN"}
+            </button>
+            <button type="button" data-testid="expand-card-button" onClick={onOpen} aria-label="Agrandir la carte"
+              className="rounded-full bg-white/15 p-2.5 backdrop-blur transition-colors hover:bg-white/25">
+              <Maximize2 className="size-4" />
+            </button>
+          </div>
+        </div>
+        <Brand />
+      </div>
+      {iban && (
+        <button type="button" data-testid="iban-value" onClick={() => { navigator.clipboard?.writeText(user.iban); toast.success("IBAN fictif copié"); }}
+          className="relative mt-4 flex w-full items-center justify-between gap-2 rounded-2xl bg-white/15 px-4 py-3 text-left font-mono text-xs tracking-wider backdrop-blur animate-in fade-in slide-in-from-top-2 sm:text-sm">
+          {user.iban} <Copy className="size-4 shrink-0" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Full-size card face (front/back) used in the expanded dialog and profile. */
+export function CardFace({ user, flipped, reveal }: { user: User; flipped: boolean; reveal: boolean }) {
+  const c = user.card;
+  return (
+    <div className="[perspective:1400px]">
+      <div className={`relative aspect-[1.586] w-full transition-transform duration-700 [transform-style:preserve-3d] ${flipped ? "[transform:rotateY(180deg)]" : ""}`}>
+        <div className={`card-gradient-${c.theme} absolute inset-0 flex flex-col justify-between overflow-hidden rounded-3xl p-6 text-white shadow-2xl shadow-indigo-500/30 [backface-visibility:hidden]`}>
+          <div className="pointer-events-none absolute -right-10 -top-16 size-60 rounded-full bg-white/10 blur-2xl" />
+          <div className="relative flex items-center justify-between">
+            <span className="font-heading text-lg font-bold tracking-tight">Banque Virtuelle</span>
+            <span className="rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">{c.frozen ? "Bloquée" : "Virtuelle"}</span>
+          </div>
+          <div className="relative flex items-center gap-3"><Chip /><Contactless /></div>
+          <p className="relative whitespace-nowrap font-mono text-[15px] tracking-[0.1em] sm:text-2xl sm:tracking-[0.18em]" data-testid="card-number-full">{reveal ? c.number : masked(c.number)}</p>
+          <div className="relative flex items-end justify-between">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-blue-100">Titulaire</p>
+              <p className="font-semibold tracking-wide" data-testid="card-holder">{c.holder}</p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-blue-100">Expire</p>
+              <p className="font-mono font-semibold" data-testid="card-expiry">{c.expiry}</p>
+            </div>
+            <Brand />
+          </div>
+          {c.frozen && <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[2px]"><Lock className="size-12" /></div>}
+        </div>
+        <div className={`card-gradient-${c.theme} absolute inset-0 overflow-hidden rounded-3xl text-white shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)]`}>
+          <div className="mt-8 h-12 w-full bg-slate-900/70" />
+          <div className="mx-6 mt-6 flex items-center justify-end gap-3 rounded-md bg-white/90 px-4 py-2 text-slate-900">
+            <span className="text-xs text-slate-500">CVV</span>
+            <span className="font-mono text-lg font-bold" data-testid="card-cvv">{reveal ? c.cvv : "•••"}</span>
+          </div>
+          <p className="mx-6 mt-6 text-[11px] leading-relaxed text-blue-100">Carte fictive — ne peut pas être utilisée pour un paiement réel. Simulation personnelle uniquement.</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function CardDialog({ user, open, onOpenChange }: { user: User; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const [flipped, setFlipped] = useState(false);
+  const [reveal, setReveal] = useState(false);
+  const renew = useRenewCard();
+  const update = useUpdateProfile();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-testid="card-dialog" className="rounded-3xl p-6 sm:max-w-lg">
+        <DialogTitle className="font-heading text-xl font-bold">Ma carte virtuelle</DialogTitle>
+        <DialogDescription className="-mt-2 text-sm text-slate-500">Toutes les informations sont fictives.</DialogDescription>
+        <button type="button" onClick={() => setFlipped((f) => !f)} className="block w-full text-left" data-testid="card-flip-area">
+          <CardFace user={user} flipped={flipped} reveal={reveal} />
+        </button>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Button variant="outline" className="h-auto flex-col gap-1 rounded-2xl py-3" data-testid="card-reveal-button" onClick={() => setReveal((r) => !r)}>
+            {reveal ? <EyeOff className="size-5" /> : <Eye className="size-5" />}<span className="text-xs">{reveal ? "Masquer" : "Afficher"}</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-1 rounded-2xl py-3" data-testid="card-flip-button" onClick={() => setFlipped((f) => !f)}>
+            <RotateCw className="size-5" /><span className="text-xs">Voir CVV</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-1 rounded-2xl py-3" data-testid="card-renew-button" disabled={renew.isPending}
+            onClick={() => renew.mutate(undefined, { onSuccess: () => toast.success("Nouvelle carte fictive générée"), onError: (e) => toast.error(errorMessage(e)) })}>
+            <RefreshCw className={`size-5 ${renew.isPending ? "animate-spin" : ""}`} /><span className="text-xs">Renouveler</span>
+          </Button>
+          <Button variant="outline" className="h-auto flex-col gap-1 rounded-2xl py-3" data-testid="card-freeze-button"
+            onClick={() => update.mutate({ card_frozen: !user.card.frozen }, { onSuccess: (u) => toast.success(u.card.frozen ? "Carte bloquée" : "Carte débloquée") })}>
+            {user.card.frozen ? <Unlock className="size-5" /> : <Lock className="size-5" />}<span className="text-xs">{user.card.frozen ? "Débloquer" : "Bloquer"}</span>
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,0 +1,72 @@
+import { useEffect, useRef, useState } from "react";
+import { Bell, CreditCard, Gift, Info, ShoppingBag, Send } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { apiPost } from "@/lib/api";
+import { keys, useNotifications } from "@/lib/hooks";
+import { fmtWhen } from "@/lib/format";
+import type { Notification } from "@/lib/types";
+
+const ICONS: Record<Notification["kind"], typeof Bell> = { receive: Gift, purchase: ShoppingBag, send: Send, card: CreditCard, info: Info };
+
+export function NotificationsBell() {
+  const { data } = useNotifications();
+  const qc = useQueryClient();
+  const unread = data?.unread ?? 0;
+  const [ring, setRing] = useState(false);
+  const prev = useRef(unread);
+  useEffect(() => {
+    if (unread > prev.current) {
+      setRing(true);
+      const t = setTimeout(() => setRing(false), 900);
+      prev.current = unread;
+      return () => clearTimeout(t);
+    }
+    prev.current = unread;
+  }, [unread]);
+
+  const onOpen = async (o: boolean) => {
+    if (o && unread > 0) {
+      await apiPost("/notifications/read").catch(() => null);
+      qc.invalidateQueries({ queryKey: keys.notifs });
+    }
+  };
+
+  return (
+    <Popover onOpenChange={onOpen}>
+      <PopoverTrigger
+        aria-label="Notifications"
+        data-testid="notifications-bell-button"
+        className="relative flex size-12 items-center justify-center rounded-full border border-slate-100 bg-white text-slate-800 shadow-sm transition-transform duration-150 hover:-translate-y-0.5 active:scale-90"
+      >
+        <Bell className={`size-5 ${ring ? "animate-bell" : ""}`} />
+        {unread > 0 && (
+          <span data-testid="notifications-unread-count" className="animate-pop-in absolute -right-0.5 -top-0.5 flex min-w-5 items-center justify-center rounded-full bg-gradient-to-r from-blue-600 to-violet-600 px-1.5 text-[11px] font-bold text-white ring-2 ring-white">
+            {unread > 99 ? "99+" : unread}
+          </span>
+        )}
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[min(92vw,360px)] rounded-3xl p-0" data-testid="notifications-panel">
+        <div className="border-b border-slate-100 px-5 py-4">
+          <p className="font-heading font-bold">Notifications</p>
+        </div>
+        <div className="max-h-96 overflow-y-auto p-2">
+          {!data?.items.length && <p className="px-3 py-8 text-center text-sm text-slate-500">Aucune notification</p>}
+          {data?.items.map((n) => {
+            const Icon = ICONS[n.kind];
+            return (
+              <div key={n.id} className={`flex gap-3 rounded-2xl px-3 py-3 ${n.read ? "" : "bg-blue-50/60"}`}>
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white text-blue-600 shadow-sm"><Icon className="size-4" /></div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{n.title}</p>
+                  <p className="text-sm text-slate-600">{n.body}</p>
+                  <p className="mt-0.5 text-xs text-slate-400">{fmtWhen(n.created_at)}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
